@@ -136,6 +136,36 @@
         .resbadge { font-size:9px; padding:2px 6px; border-radius:3px; background:#0f172a; border:1px solid #1e293b; color:var(--c-accent); letter-spacing:.1em; }
 
         .sep { width:1px; height:14px; background:var(--c-border); flex-shrink:0; }
+
+        /* Channel type selects */
+        .chan-type-select {
+            width: 100%;
+            background: #0a0a0f;
+            border: 1px solid #1e293b;
+            color: #64748b;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 4px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.15s, color 0.15s;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23475569'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 6px center;
+            padding-right: 20px;
+        }
+        .chan-type-select:hover, .chan-type-select:focus { border-color: #334155; color: #94a3b8; }
+        #type-r:hover, #type-r:focus { border-color: rgba(239,68,68,0.5); color: #fca5a5; }
+        #type-g:hover, #type-g:focus { border-color: rgba(34,197,94,0.5); color: #86efac; }
+        #type-b:hover, #type-b:focus { border-color: rgba(59,130,246,0.5); color: #93c5fd; }
+        #type-a:hover, #type-a:focus { border-color: rgba(226,232,240,0.5); color: #e2e8f0; }
+        .chan-type-select option { background: #0f172a; color: #94a3b8; }
     </style>
 </head>
 <body>
@@ -152,7 +182,7 @@
                 <div>
                     <div class="text-[9px] text-slate-600 tracking-[.3em] mb-1 uppercase">Unity HDRP</div>
                     <h1 class="text-lg font-bold tracking-tight text-white uppercase">// MASK_CHANNEL_PACKER</h1>
-                    <p class="text-[9px] text-slate-600 tracking-[.18em] mt-1">R:METALLIC · G:OCCLUSION · B:DETAIL · A:SMOOTHNESS</p>
+                    <p class="text-[9px] text-slate-600 tracking-[.18em] mt-1" id="header-channels">R:METALLIC · G:OCCLUSION · B:DETAIL · A:SMOOTHNESS</p>
                 </div>
                 <div class="flex items-center gap-4">
                     <span id="res-display" class="resbadge hidden">—</span>
@@ -164,47 +194,87 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                 <div class="flex flex-col gap-1">
                     <div class="strip strip-r"></div>
-                    <div id="zone-r" data-key="r" class="drop-zone zone-r h-28 flex flex-col items-center justify-center" title="Metallic map. Non-metallic materials (wood, skin, plastic) default to BLACK (0) — no metalness.">
+                    <div id="zone-r" data-key="r" class="drop-zone zone-r h-28 flex flex-col items-center justify-center">
                         <div class="zone-label">
-                            <span class="text-[10px] text-red-500 font-bold tracking-widest">R: METALLIC</span>
+                            <span id="label-r" class="text-[10px] text-red-500 font-bold tracking-widest">R: METALLIC</span>
                             <span class="ftag">drop or click</span>
-                            <span class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: BLACK (0)</span>
+                            <span id="default-r" class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: BLACK (0)</span>
                             <div class="ldot"></div>
                         </div>
                     </div>
+                    <select id="type-r" class="chan-type-select" data-chan="r">
+                        <option value="metallic"   data-default="0"   data-invert="0" selected>Metallic</option>
+                        <option value="ao"         data-default="255" data-invert="0">Ambient Occlusion</option>
+                        <option value="detail"     data-default="0"   data-invert="0">Detail Mask</option>
+                        <option value="smoothness" data-default="255" data-invert="0">Smoothness</option>
+                        <option value="roughness"  data-default="255" data-invert="1">Roughness (→Smooth)</option>
+                        <option value="height"     data-default="128" data-invert="1">Height (→Smooth)</option>
+                        <option value="custom0"    data-default="0"   data-invert="0">Custom — Fill Black</option>
+                        <option value="custom255"  data-default="255" data-invert="0">Custom — Fill White</option>
+                    </select>
                 </div>
                 <div class="flex flex-col gap-1">
                     <div class="strip strip-g"></div>
-                    <div id="zone-g" data-key="g" class="drop-zone zone-g h-28 flex flex-col items-center justify-center" title="Ambient Occlusion map. Without baked AO, default to WHITE (1) — fully unoccluded.">
+                    <div id="zone-g" data-key="g" class="drop-zone zone-g h-28 flex flex-col items-center justify-center">
                         <div class="zone-label">
-                            <span class="text-[10px] text-green-500 font-bold tracking-widest">G: OCCLUSION</span>
+                            <span id="label-g" class="text-[10px] text-green-500 font-bold tracking-widest">G: OCCLUSION</span>
                             <span class="ftag">drop or click</span>
-                            <span class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: WHITE (1)</span>
+                            <span id="default-g" class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: WHITE (1)</span>
                             <div class="ldot"></div>
                         </div>
                     </div>
+                    <select id="type-g" class="chan-type-select" data-chan="g">
+                        <option value="metallic"   data-default="0"   data-invert="0">Metallic</option>
+                        <option value="ao"         data-default="255" data-invert="0" selected>Ambient Occlusion</option>
+                        <option value="detail"     data-default="0"   data-invert="0">Detail Mask</option>
+                        <option value="smoothness" data-default="255" data-invert="0">Smoothness</option>
+                        <option value="roughness"  data-default="255" data-invert="1">Roughness (→Smooth)</option>
+                        <option value="height"     data-default="128" data-invert="1">Height (→Smooth)</option>
+                        <option value="custom0"    data-default="0"   data-invert="0">Custom — Fill Black</option>
+                        <option value="custom255"  data-default="255" data-invert="0">Custom — Fill White</option>
+                    </select>
                 </div>
                 <div class="flex flex-col gap-1">
                     <div class="strip strip-b"></div>
-                    <div id="zone-b" data-key="b" class="drop-zone zone-b h-28 flex flex-col items-center justify-center" title="Detail Mask. Only needed if using the Detail Map feature (fine noise, pores, scratches). Otherwise default to BLACK (0).">
+                    <div id="zone-b" data-key="b" class="drop-zone zone-b h-28 flex flex-col items-center justify-center">
                         <div class="zone-label">
-                            <span class="text-[10px] text-blue-500 font-bold tracking-widest">B: DETAIL</span>
+                            <span id="label-b" class="text-[10px] text-blue-500 font-bold tracking-widest">B: DETAIL</span>
                             <span class="ftag">drop or click</span>
-                            <span class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: BLACK (0)</span>
+                            <span id="default-b" class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: BLACK (0)</span>
                             <div class="ldot"></div>
                         </div>
                     </div>
+                    <select id="type-b" class="chan-type-select" data-chan="b">
+                        <option value="metallic"   data-default="0"   data-invert="0">Metallic</option>
+                        <option value="ao"         data-default="255" data-invert="0">Ambient Occlusion</option>
+                        <option value="detail"     data-default="0"   data-invert="0" selected>Detail Mask</option>
+                        <option value="smoothness" data-default="255" data-invert="0">Smoothness</option>
+                        <option value="roughness"  data-default="255" data-invert="1">Roughness (→Smooth)</option>
+                        <option value="height"     data-default="128" data-invert="1">Height (→Smooth)</option>
+                        <option value="custom0"    data-default="0"   data-invert="0">Custom — Fill Black</option>
+                        <option value="custom255"  data-default="255" data-invert="0">Custom — Fill White</option>
+                    </select>
                 </div>
                 <div class="flex flex-col gap-1">
                     <div class="strip strip-a"></div>
-                    <div id="zone-a" data-key="a" class="drop-zone zone-a h-28 flex flex-col items-center justify-center" title="Smoothness map. For a uniform flat surface set numerically in the Inspector instead. Default to WHITE (1) — fully smooth.">
+                    <div id="zone-a" data-key="a" class="drop-zone zone-a h-28 flex flex-col items-center justify-center">
                         <div class="zone-label">
-                            <span class="text-[10px] text-slate-200 font-bold tracking-widest">A: SMOOTH</span>
+                            <span id="label-a" class="text-[10px] text-slate-200 font-bold tracking-widest">A: SMOOTHNESS</span>
                             <span class="ftag">drop or click</span>
-                            <span class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: WHITE (1)</span>
+                            <span id="default-a" class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: WHITE (1)</span>
                             <div class="ldot"></div>
                         </div>
                     </div>
+                    <select id="type-a" class="chan-type-select" data-chan="a">
+                        <option value="metallic"   data-default="0"   data-invert="0">Metallic</option>
+                        <option value="ao"         data-default="255" data-invert="0">Ambient Occlusion</option>
+                        <option value="detail"     data-default="0"   data-invert="0">Detail Mask</option>
+                        <option value="smoothness" data-default="255" data-invert="0" selected>Smoothness</option>
+                        <option value="roughness"  data-default="255" data-invert="1">Roughness (→Smooth)</option>
+                        <option value="height"     data-default="128" data-invert="1">Height (→Smooth)</option>
+                        <option value="custom0"    data-default="0"   data-invert="0">Custom — Fill Black</option>
+                        <option value="custom255"  data-default="255" data-invert="0">Custom — Fill White</option>
+                    </select>
                 </div>
             </div>
 
@@ -235,10 +305,6 @@
             <!-- Options -->
             <div class="border border-slate-800 rounded-lg p-4 mb-4 bg-[#050505]">
                 <div class="text-[9px] text-slate-600 tracking-widest mb-3 uppercase">// Pack Options</div>
-                <div class="opt-row">
-                    <div><div class="text-[10px] text-slate-300">Invert Alpha (Height→Smoothness)</div><div class="text-[9px] text-slate-600 mt-0.5">Flips A channel. Use when input is a Height map.</div></div>
-                    <div id="toggle-invert" class="toggle-track on"><div class="toggle-thumb"></div></div>
-                </div>
                 <div class="opt-row">
                     <div><div class="text-[10px] text-slate-300">Use Luminance for Grayscale Sources</div><div class="text-[9px] text-slate-600 mt-0.5">Perceived brightness vs raw R channel.</div></div>
                     <div id="toggle-luma" class="toggle-track on"><div class="toggle-thumb"></div></div>
@@ -352,13 +418,58 @@
     const buffers   = { r:null, g:null, b:null, a:null };
     const filenames = { r:null, g:null, b:null, a:null };
     const dims      = { w:null, h:null };
-    const opts      = { invertAlpha:true, useLuma:true, flipTGA:true, flipNormalG:false };
+    const opts      = { useLuma:true, flipTGA:true, flipNormalG:false };
     let albedoURL   = null;
     let activeChannel = null;
 
-    // Default fill values per channel (used when no texture loaded)
-    // R=Metallic→0(black), G=AO→255(white), B=Detail→0(black), A=Smooth→255(white)
-    const DEFAULTS = { r:0, g:255, b:0, a:255 };
+    // Per-channel type definitions
+    // Each type: { label, defaultVal, invert, tooltip }
+    const CHAN_TYPES = {
+        metallic:   { label:'METALLIC',    defaultVal:0,   invert:false, tip:'Non-metallic (wood, skin, plastic) → BLACK (0)' },
+        ao:         { label:'OCCLUSION',   defaultVal:255, invert:false, tip:'No baked AO → WHITE (1) — fully unoccluded' },
+        detail:     { label:'DETAIL MASK', defaultVal:0,   invert:false, tip:'Not using Detail Maps → BLACK (0)' },
+        smoothness: { label:'SMOOTHNESS',  defaultVal:255, invert:false, tip:'Fully smooth surface → WHITE (1)' },
+        roughness:  { label:'ROUGHNESS',   defaultVal:255, invert:true,  tip:'Roughness is inverted to Smoothness on pack' },
+        height:     { label:'HEIGHT',      defaultVal:128, invert:true,  tip:'Height is inverted to Smoothness on pack' },
+        custom0:    { label:'CUSTOM',      defaultVal:0,   invert:false, tip:'Custom map — fills BLACK (0) when empty' },
+        custom255:  { label:'CUSTOM',      defaultVal:255, invert:false, tip:'Custom map — fills WHITE (1) when empty' },
+    };
+
+    // Per-channel selected type (default HDRP assignment)
+    const chanTypes = { r:'metallic', g:'ao', b:'detail', a:'smoothness' };
+
+    // Channel label colours for updating the zone header
+    const CHAN_COLORS = { r:'text-red-500', g:'text-green-500', b:'text-blue-500', a:'text-slate-200' };
+
+    function getChanDef(key) { return CHAN_TYPES[chanTypes[key]]; }
+
+    // Update zone label + default badge + tooltip when type changes
+    function updateZoneType(key) {
+        const def = getChanDef(key);
+        const cname = key.toUpperCase();
+        document.getElementById(`label-${key}`).textContent = `${cname}: ${def.label}`;
+        const dv = def.defaultVal === 0 ? 'BLACK (0)' : def.defaultVal === 255 ? 'WHITE (1)' : `GREY (${def.defaultVal})`;
+        const inv = def.invert ? ' · INVERTED' : '';
+        document.getElementById(`default-${key}`).textContent = `DEFAULT: ${dv}${inv}`;
+        document.getElementById(`zone-${key}`).title = def.tip + (def.invert ? ' · Values are inverted on export.' : '');
+        // Update header subtitle
+        document.getElementById('header-channels').textContent =
+            ['r','g','b','a'].map(k => `${k.toUpperCase()}:${CHAN_TYPES[chanTypes[k]].label.split(' ')[0]}`).join(' · ');
+    }
+
+    // Init all zone labels on load
+    ['r','g','b','a'].forEach(k => updateZoneType(k));
+
+    // Wire up the type selects
+    document.querySelectorAll('.chan-type-select').forEach(sel => {
+        sel.addEventListener('change', () => {
+            const key = sel.dataset.chan;
+            chanTypes[key] = sel.value;
+            updateZoneType(key);
+            updatePreview();
+        });
+    });
+
     let normalURL = null;
 
     // ═══ THREE.JS ════════════════════════════════════
@@ -664,9 +775,9 @@
     })();
 
     // ═══ TOGGLES ════════════════════════════════════
-    ['invert','luma','flip'].forEach(name => {
+    ['luma','flip'].forEach(name => {
         document.getElementById(`toggle-${name}`).addEventListener('click', function() {
-            const key = name==='invert'?'invertAlpha':name==='luma'?'useLuma':'flipTGA';
+            const key = name==='luma'?'useLuma':'flipTGA';
             opts[key] = !opts[key];
             this.classList.toggle('on', opts[key]);
             refreshThreeTex();
@@ -849,10 +960,19 @@
         return ov==='source'?{w:dims.w||1024,h:dims.h||1024}:{w:+ov,h:+ov};
     }
 
-    // Returns the value for pixel i in channel key — loaded buffer or flat default
+    // Returns the value for pixel i in channel key — loaded buffer or flat default, with per-type invert
     function chanVal(key, w, h, i) {
-        if (buffers[key]) return samp(buffers[key], dims.w, dims.h, w, h, i);
-        return DEFAULTS[key];
+        const def = getChanDef(key);
+        let v;
+        if (buffers[key]) {
+            v = samp(buffers[key], dims.w, dims.h, w, h, i);
+            if (def.invert) v = 255 - v;
+        } else {
+            v = def.defaultVal;
+            // Apply invert to default too so it's consistent (e.g. roughness default 255 → 0 smoothness)
+            if (def.invert) v = 255 - v;
+        }
+        return v;
     }
 
     function buildCanvas(){
@@ -860,12 +980,10 @@
         c.width=w; c.height=h;
         const ctx=c.getContext('2d'), out=ctx.createImageData(w,h), d=out.data;
         for(let i=0;i<w*h;i++){
-            const r=chanVal('r',w,h,i);
-            const g=chanVal('g',w,h,i);
-            const b=chanVal('b',w,h,i);
-            let   a=chanVal('a',w,h,i);
-            if(opts.invertAlpha && buffers.a) a=255-a;  // only invert if a real map is loaded
-            d[i*4]=r; d[i*4+1]=g; d[i*4+2]=b; d[i*4+3]=a;
+            d[i*4]   = chanVal('r',w,h,i);
+            d[i*4+1] = chanVal('g',w,h,i);
+            d[i*4+2] = chanVal('b',w,h,i);
+            d[i*4+3] = chanVal('a',w,h,i);
         }
         ctx.putImageData(out,0,0); return c;
     }
@@ -879,12 +997,11 @@
         const el=document.getElementById(id), sz=64;
         el.width=sz; el.height=sz;
         const ctx=el.getContext('2d');
+        const def = getChanDef(key);
         if(!buffers[key]){
-            // Show flat default colour
-            const v=DEFAULTS[key];
-            ctx.fillStyle=`rgb(${v},${v},${v})`;
+            const dv = def.invert ? 255 - def.defaultVal : def.defaultVal;
+            ctx.fillStyle=`rgb(${dv},${dv},${dv})`;
             ctx.fillRect(0,0,sz,sz);
-            // Dashed "default" label overlay
             ctx.fillStyle='rgba(0,0,0,0.45)';
             ctx.fillRect(0,sz-14,sz,14);
             ctx.fillStyle='#475569';
@@ -895,7 +1012,8 @@
         }
         const img=ctx.createImageData(sz,sz);
         for(let i=0;i<sz*sz;i++){
-            const v=(key==='a'&&opts.invertAlpha)?255-samp(buffers[key],dims.w,dims.h,sz,sz,i):samp(buffers[key],dims.w,dims.h,sz,sz,i);
+            let v = samp(buffers[key],dims.w,dims.h,sz,sz,i);
+            if (def.invert) v = 255 - v;
             img.data[i*4]=img.data[i*4+1]=img.data[i*4+2]=v; img.data[i*4+3]=255;
         }
         ctx.putImageData(img,0,0);

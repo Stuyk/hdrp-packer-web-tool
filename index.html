@@ -462,6 +462,68 @@
     // Per-channel selected type (default HDRP assignment)
     const chanTypes = { r:'metallic', g:'ao', b:'detail', a:'smoothness' };
 
+    // Persistent settings storage key and helpers
+    const STORAGE_KEY = 'hdrp_mask_packer_state';
+
+    function saveState() {
+        const state = {
+            chanTypes: {...chanTypes},
+            resOverride: document.getElementById('res-override').value,
+            fmt: document.getElementById('fmt-select').value,
+            opts: {
+                useLuma: opts.useLuma,
+                flipTGA: opts.flipTGA,
+                flipNormalG: opts.flipNormalG
+            }
+        };
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } catch (err) {
+            console.warn('Failed to save settings', err);
+        }
+    }
+
+    function loadState() {
+        let state;
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            state = JSON.parse(raw);
+        } catch (err) {
+            console.warn('Failed to load settings', err);
+            return;
+        }
+        if (state.chanTypes) {
+            Object.keys(state.chanTypes).forEach(k => {
+                if (state.chanTypes[k] && CHAN_TYPES[state.chanTypes[k]]) {
+                    chanTypes[k] = state.chanTypes[k];
+                    const sel = document.getElementById('type-' + k);
+                    if (sel) sel.value = state.chanTypes[k];
+                    updateZoneType(k);
+                }
+            });
+        }
+        if (state.resOverride) {
+            const el = document.getElementById('res-override');
+            if (el) el.value = state.resOverride;
+        }
+        if (state.fmt) {
+            const el = document.getElementById('fmt-select');
+            if (el) el.value = state.fmt;
+        }
+        if (state.opts) {
+            opts.useLuma = !!state.opts.useLuma;
+            opts.flipTGA = !!state.opts.flipTGA;
+            opts.flipNormalG = !!state.opts.flipNormalG;
+            document.getElementById('toggle-luma').classList.toggle('on', opts.useLuma);
+            document.getElementById('toggle-flip').classList.toggle('on', opts.flipTGA);
+            document.getElementById('toggle-flipnormalg').classList.toggle('on', opts.flipNormalG);
+        }
+        // after restoring options we need to update textures/preview so the viewport matches
+        refreshThreeTex();
+        updatePreview();
+    }
+
     // Channel label colours for updating the zone header
     const CHAN_COLORS = { r:'text-red-500', g:'text-green-500', b:'text-blue-500', a:'text-slate-200' };
 
@@ -483,6 +545,8 @@
 
     // Init all zone labels on load
     ['r','g','b','a'].forEach(k => updateZoneType(k));
+    // apply any saved settings
+    loadState();
 
     // Wire up the type selects
     document.querySelectorAll('.chan-type-select').forEach(sel => {
@@ -491,6 +555,7 @@
             chanTypes[key] = sel.value;
             updateZoneType(key);
             updatePreview();
+            saveState();
         });
     });
 
@@ -806,6 +871,7 @@
             this.classList.toggle('on', opts[key]);
             refreshThreeTex();
             updatePreview();
+            saveState();
         });
     });
     document.getElementById('toggle-flipnormalg').addEventListener('click', function() {
@@ -818,6 +884,7 @@
                 applyViewMode();
             });
         }
+        saveState();
     });
 
     // ═══ DROP ZONES — MASK CHANNELS ════════════════
@@ -1136,8 +1203,8 @@
         },30);
     });
 
-    document.getElementById('res-override').addEventListener('change', updatePreview);
-    document.getElementById('fmt-select').addEventListener('change', updatePreview);
+    document.getElementById('res-override').addEventListener('change', () => { updatePreview(); saveState(); });
+    document.getElementById('fmt-select').addEventListener('change', () => { updatePreview(); saveState(); });
 
     // Run once on load to show defaults immediately
     updatePreview();

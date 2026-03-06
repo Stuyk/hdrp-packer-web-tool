@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HDRP_MASK_PACKER // PRO_VERSION</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+
+        :root {
+            --c-bg: #030303;
+            --c-card: #080808;
+            --c-border: #1e293b;
+            --c-text: #94a3b8;
+            --c-muted: #475569;
+            --c-r: #ef4444;
+            --c-g: #22c55e;
+            --c-b: #3b82f6;
+            --c-a: #e2e8f0;
+            --c-accent: #06b6d4;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--c-bg);
+            color: var(--c-text);
+            min-height: 100vh;
+        }
+        body::before {
+            content:''; pointer-events:none; position:fixed; inset:0; z-index:9999;
+            background: repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(255,255,255,0.011) 3px,rgba(255,255,255,0.011) 4px);
+        }
+        body::after {
+            content:''; pointer-events:none; position:fixed; inset:0; z-index:9998;
+            background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.55) 100%);
+        }
+
+        .app-grid {
+            display: grid;
+            grid-template-columns: 1fr 420px;
+            min-height: 100vh;
+        }
+        @media (max-width: 1024px) {
+            .app-grid { grid-template-columns: 1fr; }
+            .viewport-panel { height: 440px; position: relative; }
+        }
+
+        .left-panel { padding: 28px; overflow-y: auto; border-right: 1px solid var(--c-border); }
+
+        /* ── Viewport ── */
+        .viewport-panel {
+            position: sticky; top: 0; height: 100vh;
+            display: flex; flex-direction: column;
+            background: #030306;
+        }
+        .viewport-header {
+            padding: 11px 14px; border-bottom: 1px solid var(--c-border);
+            display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+        }
+        #three-canvas { flex: 1; display: block; width: 100%; cursor: grab; }
+        #three-canvas:active { cursor: grabbing; }
+        .viewport-footer {
+            padding: 9px 12px; border-top: 1px solid var(--c-border);
+            display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;
+        }
+
+        /* ── Buttons ── */
+        .shape-btn, .view-btn, .ctrl-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+            text-transform: uppercase; padding: 5px 9px; border-radius: 4px;
+            border: 1px solid var(--c-border); background: transparent;
+            color: var(--c-muted); cursor: pointer; transition: all 0.15s;
+        }
+        .shape-btn:hover, .shape-btn.active { border-color: var(--c-accent); color: var(--c-accent); background: rgba(6,182,212,0.07); }
+        .view-btn:hover, .view-btn.active   { border-color: #a78bfa; color: #a78bfa; background: rgba(167,139,250,0.07); }
+        .ctrl-btn:hover, .ctrl-btn.active   { border-color: var(--c-accent); color: var(--c-accent); background: rgba(6,182,212,0.07); }
+
+        /* ── Drop zones ── */
+        .drop-zone {
+            position: relative; border: 1px solid var(--c-border); background: var(--c-card);
+            transition: all 0.2s; overflow: hidden; cursor: pointer; border-radius: 8px;
+        }
+        .drop-zone:hover { background: #0d0d0d; }
+        .drop-zone.zone-r:hover,.drop-zone.zone-r.dragover { border-color:var(--c-r); box-shadow:0 0 14px rgba(239,68,68,.14); }
+        .drop-zone.zone-g:hover,.drop-zone.zone-g.dragover { border-color:var(--c-g); box-shadow:0 0 14px rgba(34,197,94,.14); }
+        .drop-zone.zone-b:hover,.drop-zone.zone-b.dragover { border-color:var(--c-b); box-shadow:0 0 14px rgba(59,130,246,.14); }
+        .drop-zone.zone-a:hover,.drop-zone.zone-a.dragover { border-color:var(--c-a); box-shadow:0 0 14px rgba(226,232,240,.14); }
+        .drop-zone.zone-albedo:hover,.drop-zone.zone-albedo.dragover { border-color:#f59e0b; box-shadow:0 0 14px rgba(245,158,11,.14); }
+        .drop-zone .preview-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.42; pointer-events:none; }
+        .drop-zone .zone-label { position:relative; z-index:2; pointer-events:none; display:flex; flex-direction:column; align-items:center; gap:5px; }
+        .drop-zone .ftag { font-size:8px; letter-spacing:.05em; color:var(--c-muted); max-width:112px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; }
+        .drop-zone .ldot { width:5px; height:5px; border-radius:50%; background:var(--c-accent); display:none; animation:blink 2s infinite; }
+        .drop-zone.loaded .ldot { display:block; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+        .strip { width:100%; height:2px; border-radius:1px; }
+        .strip-r{background:var(--c-r);} .strip-g{background:var(--c-g);}
+        .strip-b{background:var(--c-b);} .strip-a{background:var(--c-a);}
+        .strip-al{background:linear-gradient(90deg,#f59e0b,#ef4444,#22c55e,#3b82f6);}
+        .strip-normal{background:linear-gradient(90deg,#7c3aed,#a78bfa);}
+        .drop-zone.zone-normal:hover,.drop-zone.zone-normal.dragover { border-color:#a78bfa; box-shadow:0 0 14px rgba(167,139,250,.18); }
+
+        /* Lighting preset buttons */
+        .light-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px; font-weight: 700; letter-spacing: 0.12em;
+            text-transform: uppercase; padding: 5px 9px; border-radius: 4px;
+            border: 1px solid var(--c-border); background: transparent;
+            color: var(--c-muted); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+        }
+        .light-btn:hover, .light-btn.active { border-color: #f59e0b; color: #f59e0b; background: rgba(245,158,11,0.07); }
+
+        .pack-btn {
+            width:100%; background:transparent; border:1px solid #1e293b; color:var(--c-muted);
+            font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700;
+            letter-spacing:.2em; text-transform:uppercase; padding:15px;
+            border-radius:8px; cursor:pointer; transition:all .3s; position:relative; overflow:hidden;
+        }
+        .pack-btn:hover { border-color:var(--c-accent); color:var(--c-accent); box-shadow:0 0 22px rgba(6,182,212,.11),inset 0 0 22px rgba(6,182,212,.04); }
+        .pack-btn { color:#64748b; border-color:#334155; }
+        .pack-btn .glow { position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(6,182,212,.06),transparent); transform:translateX(-100%); transition:transform .6s; }
+        .pack-btn:hover .glow { transform:translateX(100%); }
+
+        .toggle-track { width:32px; height:16px; border-radius:8px; background:#1e293b; position:relative; cursor:pointer; transition:background .2s; border:1px solid #334155; flex-shrink:0; }
+        .toggle-track.on { background:rgba(6,182,212,.28); border-color:var(--c-accent); }
+        .toggle-thumb { width:10px; height:10px; border-radius:50%; background:#475569; position:absolute; top:2px; left:2px; transition:all .2s; }
+        .toggle-track.on .toggle-thumb { left:18px; background:var(--c-accent); }
+        .opt-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #0f172a; }
+        .opt-row:last-child { border-bottom:none; }
+
+        .progbar { height:1px; background:var(--c-accent); transition:width .3s; box-shadow:0 0 6px var(--c-accent); }
+        .resbadge { font-size:9px; padding:2px 6px; border-radius:3px; background:#0f172a; border:1px solid #1e293b; color:var(--c-accent); letter-spacing:.1em; }
+
+        .sep { width:1px; height:14px; background:var(--c-border); flex-shrink:0; }
+    </style>
+</head>
+<body>
+    <input type="file" id="file-picker"   accept="image/*,.tga" class="hidden">
+    <input type="file" id="albedo-picker" accept="image/*,.tga" class="hidden">
+    <input type="file" id="normal-picker" accept="image/*,.tga" class="hidden">
+
+    <div class="app-grid">
+
+        <!-- ══════ LEFT ══════ -->
+        <div class="left-panel">
+
+            <header class="mb-6 flex justify-between items-end">
+                <div>
+                    <div class="text-[9px] text-slate-600 tracking-[.3em] mb-1 uppercase">Unity HDRP</div>
+                    <h1 class="text-lg font-bold tracking-tight text-white uppercase">// MASK_CHANNEL_PACKER</h1>
+                    <p class="text-[9px] text-slate-600 tracking-[.18em] mt-1">R:METALLIC · G:OCCLUSION · B:DETAIL · A:SMOOTHNESS</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span id="res-display" class="resbadge hidden">—</span>
+                    <button id="clear-btn" class="text-[9px] text-slate-600 hover:text-red-400 uppercase tracking-widest transition">[ CLEAR ]</button>
+                </div>
+            </header>
+
+            <!-- Mask channel zones -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                <div class="flex flex-col gap-1">
+                    <div class="strip strip-r"></div>
+                    <div id="zone-r" data-key="r" class="drop-zone zone-r h-28 flex flex-col items-center justify-center" title="Metallic map. Non-metallic materials (wood, skin, plastic) default to BLACK (0) — no metalness.">
+                        <div class="zone-label">
+                            <span class="text-[10px] text-red-500 font-bold tracking-widest">R: METALLIC</span>
+                            <span class="ftag">drop or click</span>
+                            <span class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: BLACK (0)</span>
+                            <div class="ldot"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <div class="strip strip-g"></div>
+                    <div id="zone-g" data-key="g" class="drop-zone zone-g h-28 flex flex-col items-center justify-center" title="Ambient Occlusion map. Without baked AO, default to WHITE (1) — fully unoccluded.">
+                        <div class="zone-label">
+                            <span class="text-[10px] text-green-500 font-bold tracking-widest">G: OCCLUSION</span>
+                            <span class="ftag">drop or click</span>
+                            <span class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: WHITE (1)</span>
+                            <div class="ldot"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <div class="strip strip-b"></div>
+                    <div id="zone-b" data-key="b" class="drop-zone zone-b h-28 flex flex-col items-center justify-center" title="Detail Mask. Only needed if using the Detail Map feature (fine noise, pores, scratches). Otherwise default to BLACK (0).">
+                        <div class="zone-label">
+                            <span class="text-[10px] text-blue-500 font-bold tracking-widest">B: DETAIL</span>
+                            <span class="ftag">drop or click</span>
+                            <span class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: BLACK (0)</span>
+                            <div class="ldot"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <div class="strip strip-a"></div>
+                    <div id="zone-a" data-key="a" class="drop-zone zone-a h-28 flex flex-col items-center justify-center" title="Smoothness map. For a uniform flat surface set numerically in the Inspector instead. Default to WHITE (1) — fully smooth.">
+                        <div class="zone-label">
+                            <span class="text-[10px] text-slate-200 font-bold tracking-widest">A: SMOOTH</span>
+                            <span class="ftag">drop or click</span>
+                            <span class="default-badge" style="font-size:8px;color:#6b7280;letter-spacing:.06em;margin-top:2px;">DEFAULT: WHITE (1)</span>
+                            <div class="ldot"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Albedo + Normal map zones (3D preview only) -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div class="flex flex-col gap-1">
+                    <div class="strip strip-al"></div>
+                    <div id="zone-albedo" class="drop-zone zone-albedo h-14 flex flex-col items-center justify-center">
+                        <div class="zone-label">
+                            <span class="text-[10px] text-amber-400 font-bold tracking-widest">ALBEDO — preview only</span>
+                            <span id="albedo-tag" class="ftag">drop color map here</span>
+                            <div class="ldot" style="background:#f59e0b"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <div class="strip strip-normal"></div>
+                    <div id="zone-normal" class="drop-zone zone-normal h-14 flex flex-col items-center justify-center" title="Normal map for 3D preview only. Not packed into the mask. Use a DirectX-style (Y+) normal map for correct HDRP shading.">
+                        <div class="zone-label">
+                            <span class="text-[10px] text-violet-400 font-bold tracking-widest">NORMAL — preview only</span>
+                            <span id="normal-tag" class="ftag">drop normal map here</span>
+                            <div class="ldot" style="background:#a78bfa"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Options -->
+            <div class="border border-slate-800 rounded-lg p-4 mb-4 bg-[#050505]">
+                <div class="text-[9px] text-slate-600 tracking-widest mb-3 uppercase">// Pack Options</div>
+                <div class="opt-row">
+                    <div><div class="text-[10px] text-slate-300">Invert Alpha (Height→Smoothness)</div><div class="text-[9px] text-slate-600 mt-0.5">Flips A channel. Use when input is a Height map.</div></div>
+                    <div id="toggle-invert" class="toggle-track on"><div class="toggle-thumb"></div></div>
+                </div>
+                <div class="opt-row">
+                    <div><div class="text-[10px] text-slate-300">Use Luminance for Grayscale Sources</div><div class="text-[9px] text-slate-600 mt-0.5">Perceived brightness vs raw R channel.</div></div>
+                    <div id="toggle-luma" class="toggle-track on"><div class="toggle-thumb"></div></div>
+                </div>
+                <div class="opt-row">
+                    <div><div class="text-[10px] text-slate-300">Flip TGA Vertically</div><div class="text-[9px] text-slate-600 mt-0.5">TGA files are stored bottom-up by default.</div></div>
+                    <div id="toggle-flip" class="toggle-track on"><div class="toggle-thumb"></div></div>
+                </div>
+                <div class="opt-row">
+                    <div>
+                        <div class="text-[10px] text-violet-400">Flip Normal Map Green Channel</div>
+                        <div class="text-[9px] text-slate-600 mt-0.5">Convert OpenGL (Y+) → DirectX (Y−) or vice versa. Enable if lighting looks inverted on the 3D preview.</div>
+                    </div>
+                    <div id="toggle-flipnormalg" class="toggle-track"><div class="toggle-thumb"></div></div>
+                </div>
+                <div class="opt-row">
+                    <div><div class="text-[10px] text-slate-300">Output Resolution</div><div class="text-[9px] text-slate-600 mt-0.5">Use source res, or override.</div></div>
+                    <select id="res-override" class="bg-[#0f172a] border border-slate-700 text-slate-300 text-[9px] font-mono px-2 py-1 rounded tracking-widest">
+                        <option value="source">SOURCE</option><option value="512">512</option>
+                        <option value="1024">1024</option><option value="2048">2048</option><option value="4096">4096</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Export -->
+            <div class="border border-slate-800 rounded-lg p-4 mb-3 bg-[#050505]">
+                <div class="text-[9px] text-slate-600 tracking-widest mb-3 uppercase">// Export</div>
+                <div class="opt-row">
+                    <div>
+                        <div class="text-[10px] text-slate-300">Output Format</div>
+                        <div class="text-[9px] text-slate-600 mt-0.5">PNG (lossless, alpha supported) or TGA (uncompressed 32-bit)</div>
+                    </div>
+                    <select id="fmt-select" class="bg-[#0f172a] border border-slate-700 text-slate-300 text-[9px] font-mono px-2 py-1 rounded tracking-widest">
+                        <option value="png">PNG</option>
+                        <option value="tga">TGA</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div id="prog-wrap" class="border border-slate-800 rounded-lg overflow-hidden mb-3 bg-[#050505]" style="display:none">
+                <div class="progbar" id="prog-bar" style="width:0%"></div>
+            </div>
+
+            <!-- 2D preview -->
+            <div id="preview-container" class="border border-slate-800 p-4 mb-3 bg-[#050505] rounded-lg">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">// Preview: Packed Mask</h2>
+                    <span id="preview-status" class="text-[9px] text-slate-600 font-mono tracking-widest uppercase">STATUS: USING_DEFAULTS</span>
+                </div>
+                <div class="flex justify-center mb-3">
+                    <img id="preview-img" class="max-w-[190px] rounded shadow-lg border border-slate-800" src="" alt="">
+                </div>
+                <div class="grid grid-cols-4 gap-2">
+                    <div class="flex flex-col gap-1"><div class="text-[8px] text-red-500 tracking-widest text-center">R</div><canvas id="ch-r" class="w-full rounded border border-slate-800" height="52"></canvas></div>
+                    <div class="flex flex-col gap-1"><div class="text-[8px] text-green-500 tracking-widest text-center">G</div><canvas id="ch-g" class="w-full rounded border border-slate-800" height="52"></canvas></div>
+                    <div class="flex flex-col gap-1"><div class="text-[8px] text-blue-500 tracking-widest text-center">B</div><canvas id="ch-b" class="w-full rounded border border-slate-800" height="52"></canvas></div>
+                    <div class="flex flex-col gap-1"><div class="text-[8px] text-slate-300 tracking-widest text-center">A</div><canvas id="ch-a" class="w-full rounded border border-slate-800" height="52"></canvas></div>
+                </div>
+            </div>
+
+            <button id="pack-btn" class="pack-btn">
+                <div class="glow"></div>[ EXECUTE_PACK_DOWNLOAD ]
+            </button>
+            <p class="text-center text-[9px] text-slate-700 mt-3 tracking-widest" id="export-hint">OUTPUTS: T_[NAME]_MaskMap.png · FORMAT: RGBA32 · UNITY_HDRP</p>
+        </div>
+
+        <!-- ══════ RIGHT — 3D VIEWPORT ══════ -->
+        <div class="viewport-panel">
+            <div class="viewport-header">
+                <div>
+                    <div class="text-[9px] text-slate-300 font-bold tracking-widest">// 3D_PREVIEW</div>
+                    <div class="text-[9px] text-slate-600 mt-0.5 tracking-widest" id="vp-hint">Load textures to see PBR material</div>
+                </div>
+            </div>
+
+            <canvas id="three-canvas"></canvas>
+
+            <div class="viewport-footer" style="flex-direction:column; align-items:flex-start; gap:8px; padding:10px 12px;">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%">
+                    <span class="text-[9px] text-slate-600 tracking-widest">SHAPE:</span>
+                    <button class="shape-btn active" data-shape="sphere">SPHERE</button>
+                    <button class="shape-btn" data-shape="box">CUBE</button>
+                    <button class="shape-btn" data-shape="torus">TORUS</button>
+                    <button class="shape-btn" data-shape="plane">PLANE</button>
+                    <div class="sep"></div>
+                    <span class="text-[9px] text-slate-600 tracking-widest">VIEW:</span>
+                    <button class="view-btn active" data-view="albedo">FULL</button>
+                    <button class="view-btn" data-view="metallic">METAL</button>
+                    <button class="view-btn" data-view="ao">AO</button>
+                    <button class="view-btn" data-view="smooth">ROUGH</button>
+                    <button class="view-btn" data-view="normal">NORMAL</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%;border-top:1px solid #1e293b;padding-top:8px;">
+                    <span class="text-[9px] text-slate-600 tracking-widest">LIGHT:</span>
+                    <button class="light-btn active" data-light="studio">STUDIO</button>
+                    <button class="light-btn" data-light="outdoor">OUTDOOR</button>
+                    <button class="light-btn" data-light="dramatic">DRAMATIC</button>
+                    <button class="light-btn" data-light="furnace">FURNACE</button>
+                    <button class="light-btn" data-light="night">NIGHT</button>
+                    <div class="sep"></div>
+                    <button id="autorotate-btn" class="ctrl-btn active" style="margin-left:auto">⟳ AUTO</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+    // ═══ STATE ═══════════════════════════════════════
+    const buffers   = { r:null, g:null, b:null, a:null };
+    const filenames = { r:null, g:null, b:null, a:null };
+    const dims      = { w:null, h:null };
+    const opts      = { invertAlpha:true, useLuma:true, flipTGA:true, flipNormalG:false };
+    let albedoURL   = null;
+    let activeChannel = null;
+
+    // Default fill values per channel (used when no texture loaded)
+    // R=Metallic→0(black), G=AO→255(white), B=Detail→0(black), A=Smooth→255(white)
+    const DEFAULTS = { r:0, g:255, b:0, a:255 };
+    let normalURL = null;
+
+    // ═══ THREE.JS ════════════════════════════════════
+    const vpCanvas = document.getElementById('three-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas: vpCanvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputEncoding    = THREE.sRGBEncoding;
+    renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.3;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+
+    const scene  = new THREE.Scene();
+    scene.background = new THREE.Color(0x040407);
+    scene.fog = new THREE.FogExp2(0x040407, 0.12);
+
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 100);
+    camera.position.set(0, 0.2, 3.4);
+
+    // ── Dynamic lights (replaced per preset) ──
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.18);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfff4e0, 3.0);
+    keyLight.position.set(4, 5, 3);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = keyLight.shadow.mapSize.height = 1024;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x90b8ff, 0.7);
+    fillLight.position.set(-4, 1, -2);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0x06b6d4, 1.0);
+    rimLight.position.set(0, -3, -4);
+    scene.add(rimLight);
+
+    // Grid floor
+    const grid = new THREE.GridHelper(12, 24, 0x0d1a2e, 0x0d1a2e);
+    grid.position.y = -1.6; grid.receiveShadow = true;
+    scene.add(grid);
+
+    // Shadow-catcher plane
+    const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(12,12), new THREE.ShadowMaterial({opacity:0.35}));
+    shadowPlane.rotation.x = -Math.PI/2; shadowPlane.position.y = -1.6; shadowPlane.receiveShadow = true;
+    scene.add(shadowPlane);
+
+    // ── Lighting Presets ──
+    // Each preset: { ambient:[color,intensity], key:[color,intensity,pos], fill:[color,intensity,pos], rim:[color,intensity,pos], bg, fogColor, exposure }
+    const LIGHT_PRESETS = {
+        studio: {
+            label: 'STUDIO',
+            ambient:  [0xffffff, 0.22],
+            key:      [0xfff4e0, 3.0,  [4, 5, 3]],
+            fill:     [0x90b8ff, 0.7,  [-4, 1, -2]],
+            rim:      [0x06b6d4, 1.0,  [0, -3, -4]],
+            bg: 0x040407, fog: 0x040407, exposure: 1.3,
+        },
+        outdoor: {
+            label: 'OUTDOOR',
+            ambient:  [0xc8e0ff, 0.55],
+            key:      [0xfff8e8, 4.5,  [6, 8, 2]],
+            fill:     [0x6aaeff, 0.9,  [-5, 2, -1]],
+            rim:      [0x88ccff, 0.4,  [0, -1, -5]],
+            bg: 0x0d1a2e, fog: 0x0d1a2e, exposure: 1.6,
+        },
+        dramatic: {
+            label: 'DRAMATIC',
+            ambient:  [0x0a0a14, 0.08],
+            key:      [0xff7020, 5.0,  [3, 3, 1]],
+            fill:     [0x1a0030, 0.2,  [-3, 0, -2]],
+            rim:      [0x4000ff, 1.8,  [-1, -2, -4]],
+            bg: 0x010104, fog: 0x010104, exposure: 1.1,
+        },
+        furnace: {
+            label: 'FURNACE',
+            ambient:  [0xffffff, 1.0],
+            key:      [0xffffff, 1.0,  [4, 5, 3]],
+            fill:     [0xffffff, 1.0,  [-4, 1, -2]],
+            rim:      [0xffffff, 1.0,  [0, -3, -4]],
+            bg: 0x7f7f7f, fog: 0x7f7f7f, exposure: 1.0,
+        },
+        night: {
+            label: 'NIGHT',
+            ambient:  [0x0a1428, 0.12],
+            key:      [0x2040ff, 0.8,  [2, 4, 2]],
+            fill:     [0x001050, 0.25, [-3, 1, -2]],
+            rim:      [0xff4080, 1.4,  [0, -2, -4]],
+            bg: 0x000208, fog: 0x000208, exposure: 1.0,
+        },
+    };
+
+    function applyLightPreset(name) {
+        const p = LIGHT_PRESETS[name];
+        if (!p) return;
+        ambientLight.color.setHex(p.ambient[0]); ambientLight.intensity = p.ambient[1];
+        keyLight.color.setHex(p.key[0]);   keyLight.intensity  = p.key[1];   keyLight.position.set(...p.key[2]);
+        fillLight.color.setHex(p.fill[0]); fillLight.intensity = p.fill[1];  fillLight.position.set(...p.fill[2]);
+        rimLight.color.setHex(p.rim[0]);   rimLight.intensity  = p.rim[1];   rimLight.position.set(...p.rim[2]);
+        scene.background.setHex(p.bg);
+        scene.fog.color.setHex(p.fog);
+        renderer.toneMappingExposure = p.exposure;
+    }
+
+    document.querySelectorAll('.light-btn[data-light]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.light-btn[data-light]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            applyLightPreset(btn.dataset.light);
+        });
+    });
+    applyLightPreset('studio'); // default
+
+    // PBR material
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0x4a7c6e, metalness: 0.0, roughness: 0.65
+    });
+
+    const geos = {
+        sphere: new THREE.SphereGeometry(1.05, 96, 96),
+        box:    new THREE.BoxGeometry(1.7, 1.7, 1.7, 2, 2, 2),
+        torus:  new THREE.TorusGeometry(0.78, 0.33, 64, 128),
+        plane:  new THREE.PlaneGeometry(2.2, 2.2, 1, 1),
+    };
+
+    let mesh = new THREE.Mesh(geos.sphere, mat);
+    mesh.castShadow = true;
+    scene.add(mesh);
+
+    let currentShape = 'sphere';
+    let currentView  = 'albedo';
+    let autoRotate   = true;
+    let isDragging   = false;
+    let prevX = 0, prevY = 0;
+    let rotX = 0, rotY = 0, tgtX = 0, tgtY = 0;
+    let autoAngle = 0;
+
+    const threeTextures = { albedo:null, metallic:null, ao:null, smooth:null, normal:null };
+
+    // ── Resize ──
+    function resizeVP() {
+        const w = vpCanvas.clientWidth, h = vpCanvas.clientHeight;
+        if (vpCanvas.width !== w || vpCanvas.height !== h) {
+            renderer.setSize(w, h, false);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+    }
+
+    // ── Shape toggle ──
+    document.querySelectorAll('.shape-btn[data-shape]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.shape-btn[data-shape]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentShape = btn.dataset.shape;
+            scene.remove(mesh);
+            mesh = new THREE.Mesh(geos[currentShape], mat);
+            mesh.castShadow = true;
+            scene.add(mesh);
+        });
+    });
+
+    // ── View toggle ──
+    document.querySelectorAll('.view-btn[data-view]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.view-btn[data-view]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentView = btn.dataset.view;
+            applyViewMode();
+        });
+    });
+
+    // ── Auto-rotate toggle ──
+    document.getElementById('autorotate-btn').addEventListener('click', function() {
+        autoRotate = !autoRotate;
+        this.classList.toggle('active', autoRotate);
+    });
+
+    // ── Apply view mode ──
+    function applyViewMode() {
+        mat.map = mat.metalnessMap = mat.roughnessMap = mat.aoMap = mat.normalMap = null;
+        mat.color.set(0xffffff);
+        mat.metalness = 0; mat.roughness = 0.65;
+        mat.normalScale && mat.normalScale.set(1, 1);
+
+        if (currentView === 'albedo') {
+            if (threeTextures.albedo)   { mat.map = threeTextures.albedo; }
+            else                        { mat.color.set(0x4a7c6e); }
+            if (threeTextures.metallic) { mat.metalnessMap = threeTextures.metallic; mat.metalness = 1.0; }
+            if (threeTextures.smooth)   { mat.roughnessMap = threeTextures.smooth;   mat.roughness = 1.0; }
+            if (threeTextures.ao)       { mat.aoMap = threeTextures.ao; mat.aoMapIntensity = 1.2; }
+            if (threeTextures.normal)   { mat.normalMap = threeTextures.normal; mat.normalScale.set(1, 1); }
+        } else if (currentView === 'metallic') {
+            mat.map = threeTextures.metallic || null;
+            if (!threeTextures.metallic) mat.color.set(0x111111);
+            mat.metalness = 0; mat.roughness = 0.5;
+        } else if (currentView === 'ao') {
+            mat.map = threeTextures.ao || null;
+            if (!threeTextures.ao) mat.color.set(0x888888);
+            mat.metalness = 0; mat.roughness = 1;
+        } else if (currentView === 'smooth') {
+            mat.map = threeTextures.smooth || null;
+            if (!threeTextures.smooth) mat.color.set(0x444444);
+            mat.metalness = 0; mat.roughness = 1;
+        } else if (currentView === 'normal') {
+            // Show normal map visually: render as map, or show flat blue if none loaded
+            if (threeTextures.normal) {
+                mat.map = threeTextures.normal;
+            } else {
+                mat.color.set(0x8080ff); // flat normal (pointing up in tangent space)
+            }
+            mat.metalness = 0; mat.roughness = 1;
+        }
+        mat.needsUpdate = true;
+    }
+
+    // ── Build Three.js texture from flat grayscale buffer ──
+    function grayBufToTex(buf, w, h, invert) {
+        const rgba = new Uint8Array(w * h * 4);
+        for (let i = 0; i < w*h; i++) {
+            const v = invert ? 255 - buf[i] : buf[i];
+            rgba[i*4]=rgba[i*4+1]=rgba[i*4+2]=v; rgba[i*4+3]=255;
+        }
+        const t = new THREE.DataTexture(rgba, w, h, THREE.RGBAFormat);
+        t.flipY = true; t.needsUpdate = true;
+        return t;
+    }
+
+    function urlToTex(url, cb) {
+        new THREE.TextureLoader().load(url, t => { t.encoding = THREE.sRGBEncoding; t.needsUpdate = true; cb(t); });
+    }
+
+    function urlToNormalTex(url, cb) {
+        buildNormalTexFromURL(url, cb);
+    }
+
+    // Loads a normal map URL, optionally flips the G channel, returns a Three.js DataTexture
+    function buildNormalTexFromURL(url, cb) {
+        const img = new Image();
+        img.onload = () => {
+            const w = img.naturalWidth, h = img.naturalHeight;
+            const c = document.createElement('canvas'); c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const id = ctx.getImageData(0, 0, w, h);
+            const d = id.data;
+            if (opts.flipNormalG) {
+                for (let i = 0; i < d.length; i += 4) d[i+1] = 255 - d[i+1];
+            }
+            // Build a DataTexture (LinearEncoding — normal maps are NOT sRGB)
+            const rgba = new Uint8Array(d.buffer);
+            const t = new THREE.DataTexture(rgba.slice(), w, h, THREE.RGBAFormat);
+            t.encoding = THREE.LinearEncoding;
+            t.flipY = true;
+            t.needsUpdate = true;
+            cb(t);
+        };
+        img.src = url;
+    }
+
+    function refreshThreeTex() {
+        if (buffers.r && dims.w) threeTextures.metallic = grayBufToTex(buffers.r, dims.w, dims.h, false);
+        if (buffers.g && dims.w) threeTextures.ao       = grayBufToTex(buffers.g, dims.w, dims.h, false);
+        if (buffers.a && dims.w) threeTextures.smooth   = grayBufToTex(buffers.a, dims.w, dims.h, opts.invertAlpha);
+        applyViewMode();
+        document.getElementById('vp-hint').textContent = 'Drag to orbit · Scroll to zoom';
+    }
+
+    // ── Orbit interaction ──
+    vpCanvas.addEventListener('pointerdown', e => {
+        isDragging = true; prevX = e.clientX; prevY = e.clientY;
+        autoRotate = false;
+        document.getElementById('autorotate-btn').classList.remove('active');
+    });
+    window.addEventListener('pointerup', () => { isDragging = false; });
+    window.addEventListener('pointermove', e => {
+        if (!isDragging) return;
+        tgtY += (e.clientX - prevX) * 0.013;
+        tgtX += (e.clientY - prevY) * 0.013;
+        tgtX  = Math.max(-1.4, Math.min(1.4, tgtX));
+        prevX = e.clientX; prevY = e.clientY;
+    });
+    vpCanvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        camera.position.z = Math.max(1.4, Math.min(9, camera.position.z + e.deltaY * 0.005));
+    }, { passive: false });
+
+    // ── Render loop ──
+    (function animate() {
+        requestAnimationFrame(animate);
+        resizeVP();
+        if (autoRotate) {
+            autoAngle += 0.007;
+            mesh.rotation.y = autoAngle;
+            mesh.rotation.x = Math.sin(autoAngle * 0.33) * 0.16;
+        } else {
+            rotX += (tgtX - rotX) * 0.1;
+            rotY += (tgtY - rotY) * 0.1;
+            mesh.rotation.x = rotX;
+            mesh.rotation.y = rotY;
+        }
+        renderer.render(scene, camera);
+    })();
+
+    // ═══ TOGGLES ════════════════════════════════════
+    ['invert','luma','flip'].forEach(name => {
+        document.getElementById(`toggle-${name}`).addEventListener('click', function() {
+            const key = name==='invert'?'invertAlpha':name==='luma'?'useLuma':'flipTGA';
+            opts[key] = !opts[key];
+            this.classList.toggle('on', opts[key]);
+            refreshThreeTex();
+            updatePreview();
+        });
+    });
+    document.getElementById('toggle-flipnormalg').addEventListener('click', function() {
+        opts.flipNormalG = !opts.flipNormalG;
+        this.classList.toggle('on', opts.flipNormalG);
+        // Re-build the normal texture from the stored URL with the new flip setting
+        if (normalURL) {
+            buildNormalTexFromURL(normalURL, tex => {
+                threeTextures.normal = tex;
+                applyViewMode();
+            });
+        }
+    });
+
+    // ═══ DROP ZONES — MASK CHANNELS ════════════════
+    document.querySelectorAll('.drop-zone:not(#zone-albedo):not(#zone-normal)').forEach(el => {
+        el.addEventListener('dragover',  e => { e.preventDefault(); el.classList.add('dragover'); });
+        el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+        el.addEventListener('drop',      e => { e.preventDefault(); el.classList.remove('dragover'); processFile(e.dataTransfer.files[0], el.dataset.key, el); });
+        el.addEventListener('click',     () => { activeChannel = el.dataset.key; document.getElementById('file-picker').value=''; document.getElementById('file-picker').click(); });
+    });
+    document.getElementById('file-picker').addEventListener('change', e => {
+        if (e.target.files[0] && activeChannel) processFile(e.target.files[0], activeChannel, document.getElementById(`zone-${activeChannel}`));
+    });
+
+    // ═══ ALBEDO ZONE ════════════════════════════════
+    const albZone = document.getElementById('zone-albedo');
+    albZone.addEventListener('dragover',  e => { e.preventDefault(); albZone.classList.add('dragover'); });
+    albZone.addEventListener('dragleave', () => albZone.classList.remove('dragover'));
+    albZone.addEventListener('drop',      e => { e.preventDefault(); albZone.classList.remove('dragover'); processAlbedo(e.dataTransfer.files[0]); });
+    albZone.addEventListener('click',     () => { document.getElementById('albedo-picker').value=''; document.getElementById('albedo-picker').click(); });
+    document.getElementById('albedo-picker').addEventListener('change', e => { if(e.target.files[0]) processAlbedo(e.target.files[0]); });
+
+    function processAlbedo(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            albedoURL = e.target.result;
+            let img = albZone.querySelector('.preview-img');
+            if (!img) { img = document.createElement('img'); img.className='preview-img'; albZone.insertBefore(img, albZone.firstChild); }
+            img.src = albedoURL;
+            albZone.classList.add('loaded');
+            document.getElementById('albedo-tag').textContent = file.name.length>24 ? file.name.slice(0,22)+'…' : file.name;
+            urlToTex(albedoURL, tex => { threeTextures.albedo = tex; applyViewMode(); document.getElementById('vp-hint').textContent = 'Drag to orbit · Scroll to zoom'; });
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // ═══ NORMAL ZONE ════════════════════════════════
+    const normalZone = document.getElementById('zone-normal');
+    normalZone.addEventListener('dragover',  e => { e.preventDefault(); normalZone.classList.add('dragover'); });
+    normalZone.addEventListener('dragleave', () => normalZone.classList.remove('dragover'));
+    normalZone.addEventListener('drop',      e => { e.preventDefault(); normalZone.classList.remove('dragover'); processNormal(e.dataTransfer.files[0]); });
+    normalZone.addEventListener('click',     () => { document.getElementById('normal-picker').value=''; document.getElementById('normal-picker').click(); });
+    document.getElementById('normal-picker').addEventListener('change', e => { if(e.target.files[0]) processNormal(e.target.files[0]); });
+
+    function processNormal(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            normalURL = e.target.result;
+            let img = normalZone.querySelector('.preview-img');
+            if (!img) { img = document.createElement('img'); img.className='preview-img'; normalZone.insertBefore(img, normalZone.firstChild); }
+            img.src = normalURL;
+            normalZone.classList.add('loaded');
+            document.getElementById('normal-tag').textContent = file.name.length>24 ? file.name.slice(0,22)+'…' : file.name;
+            urlToNormalTex(normalURL, tex => {
+                threeTextures.normal = tex;
+                applyViewMode();
+                document.getElementById('vp-hint').textContent = 'Drag to orbit · Scroll to zoom';
+            });
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // ═══ CLEAR ══════════════════════════════════════
+    document.getElementById('clear-btn').addEventListener('click', () => {
+        Object.keys(buffers).forEach(key => {
+            buffers[key]=null; filenames[key]=null;
+            const z = document.getElementById(`zone-${key}`);
+            z.classList.remove('loaded');
+            z.querySelector('.preview-img')?.remove();
+            z.querySelector('.ftag').textContent = 'drop or click';
+        });
+        dims.w = dims.h = null; albedoURL = null; normalURL = null;
+        albZone.classList.remove('loaded');
+        albZone.querySelector('.preview-img')?.remove();
+        document.getElementById('albedo-tag').textContent = 'drop color map here';
+        normalZone.classList.remove('loaded');
+        normalZone.querySelector('.preview-img')?.remove();
+        document.getElementById('normal-tag').textContent = 'drop normal map here';
+        Object.keys(threeTextures).forEach(k => threeTextures[k]=null);
+        mat.map=mat.metalnessMap=mat.roughnessMap=mat.aoMap=mat.normalMap=null;
+        mat.color.set(0x4a7c6e); mat.metalness=0; mat.roughness=0.65; mat.needsUpdate=true;
+        document.getElementById('res-display').classList.add('hidden');
+        document.getElementById('vp-hint').textContent='Load textures to see PBR material';
+        updatePreview();
+    });
+
+    // ═══ FILE PROCESSOR ════════════════════════════
+    function processFile(file, key, container) {
+        if (!file) return;
+        filenames[key] = file.name;
+        if (file.name.toLowerCase().endsWith('.tga')) {
+            const r = new FileReader();
+            r.onload = e => {
+                try {
+                    const id = parseTGA(e.target.result, opts.flipTGA);
+                    dims.w=id.width; dims.h=id.height;
+                    buffers[key]=extractGray(id, opts.useLuma);
+                    setZonePreview(container, id, file.name);
+                    updatePreview(); refreshThreeTex();
+                } catch(err) { alert('TGA parse error: '+err.message); }
+            };
+            r.readAsArrayBuffer(file);
+        } else {
+            const r = new FileReader();
+            r.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    dims.w=img.naturalWidth; dims.h=img.naturalHeight;
+                    const c=document.createElement('canvas'); c.width=dims.w; c.height=dims.h;
+                    c.getContext('2d').drawImage(img,0,0);
+                    buffers[key]=extractGray(c.getContext('2d').getImageData(0,0,dims.w,dims.h), opts.useLuma);
+                    setZonePreview(container, e.target.result, file.name);
+                    updatePreview(); refreshThreeTex();
+                };
+                img.src=e.target.result;
+            };
+            r.readAsDataURL(file);
+        }
+    }
+
+    function extractGray(id, luma) {
+        const src=id.data, len=id.width*id.height, out=new Uint8Array(len);
+        for(let i=0;i<len;i++){const b=i*4; out[i]=luma?Math.round(.2126*src[b]+.7152*src[b+1]+.0722*src[b+2]):src[b];}
+        return out;
+    }
+
+    function parseTGA(buf, flip) {
+        const v=new DataView(buf), idLen=v.getUint8(0), type=v.getUint8(2);
+        if(type!==2&&type!==3) throw new Error(`Unsupported TGA type ${type}`);
+        const cmLen=v.getUint16(5,true), cmDepth=v.getUint8(7);
+        const W=v.getUint16(12,true), H=v.getUint16(14,true), depth=v.getUint8(16);
+        const topLeft=(v.getUint8(17)&0x20)!==0;
+        const raw=new Uint8Array(buf, 18+idLen+cmLen*Math.ceil(cmDepth/8));
+        const c=document.createElement('canvas'); c.width=W; c.height=H;
+        const id=c.getContext('2d').createImageData(W,H), dst=id.data, bpp=Math.ceil(depth/8);
+        for(let y=0;y<H;y++){
+            const sy=(topLeft||!flip)?y:(H-1-y);
+            for(let x=0;x<W;x++){
+                const si=(sy*W+x)*bpp, di=(y*W+x)*4;
+                if(depth===32){dst[di]=raw[si+2];dst[di+1]=raw[si+1];dst[di+2]=raw[si+0];dst[di+3]=raw[si+3];}
+                else if(depth===24){dst[di]=raw[si+2];dst[di+1]=raw[si+1];dst[di+2]=raw[si+0];dst[di+3]=255;}
+                else if(depth===8){const vv=raw[si];dst[di]=dst[di+1]=dst[di+2]=vv;dst[di+3]=255;}
+            }
+        }
+        return id;
+    }
+
+    function setZonePreview(container, src, fname) {
+        let imgEl=container.querySelector('.preview-img');
+        if(!imgEl){imgEl=document.createElement('img');imgEl.className='preview-img';container.insertBefore(imgEl,container.firstChild);}
+        if(src instanceof ImageData){const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').putImageData(src,0,0);imgEl.src=c.toDataURL();}
+        else{imgEl.src=src;}
+        container.classList.add('loaded');
+        container.querySelector('.ftag').textContent=fname.length>20?fname.slice(0,18)+'…':fname;
+        document.getElementById('res-display').textContent=`${dims.w}×${dims.h}`;
+        document.getElementById('res-display').classList.remove('hidden');
+    }
+
+    // ═══ PACK PREVIEW ═══════════════════════════════
+    function getSize(){
+        const ov=document.getElementById('res-override').value;
+        // Use dims if available, fall back to 1024 for defaults-only pack
+        return ov==='source'?{w:dims.w||1024,h:dims.h||1024}:{w:+ov,h:+ov};
+    }
+
+    // Returns the value for pixel i in channel key — loaded buffer or flat default
+    function chanVal(key, w, h, i) {
+        if (buffers[key]) return samp(buffers[key], dims.w, dims.h, w, h, i);
+        return DEFAULTS[key];
+    }
+
+    function buildCanvas(){
+        const {w,h}=getSize(), c=document.createElement('canvas');
+        c.width=w; c.height=h;
+        const ctx=c.getContext('2d'), out=ctx.createImageData(w,h), d=out.data;
+        for(let i=0;i<w*h;i++){
+            const r=chanVal('r',w,h,i);
+            const g=chanVal('g',w,h,i);
+            const b=chanVal('b',w,h,i);
+            let   a=chanVal('a',w,h,i);
+            if(opts.invertAlpha && buffers.a) a=255-a;  // only invert if a real map is loaded
+            d[i*4]=r; d[i*4+1]=g; d[i*4+2]=b; d[i*4+3]=a;
+        }
+        ctx.putImageData(out,0,0); return c;
+    }
+
+    function samp(buf,sw,sh,dw,dh,di){
+        const dx=di%dw, dy=Math.floor(di/dw);
+        return buf[Math.min(Math.round(dy*(sh/dh)),sh-1)*sw+Math.min(Math.round(dx*(sw/dw)),sw-1)];
+    }
+
+    function drawChan(id, key){
+        const el=document.getElementById(id), sz=64;
+        el.width=sz; el.height=sz;
+        const ctx=el.getContext('2d');
+        if(!buffers[key]){
+            // Show flat default colour
+            const v=DEFAULTS[key];
+            ctx.fillStyle=`rgb(${v},${v},${v})`;
+            ctx.fillRect(0,0,sz,sz);
+            // Dashed "default" label overlay
+            ctx.fillStyle='rgba(0,0,0,0.45)';
+            ctx.fillRect(0,sz-14,sz,14);
+            ctx.fillStyle='#475569';
+            ctx.font='bold 7px monospace';
+            ctx.textAlign='center';
+            ctx.fillText('DEFAULT',sz/2,sz-4);
+            return;
+        }
+        const img=ctx.createImageData(sz,sz);
+        for(let i=0;i<sz*sz;i++){
+            const v=(key==='a'&&opts.invertAlpha)?255-samp(buffers[key],dims.w,dims.h,sz,sz,i):samp(buffers[key],dims.w,dims.h,sz,sz,i);
+            img.data[i*4]=img.data[i*4+1]=img.data[i*4+2]=v; img.data[i*4+3]=255;
+        }
+        ctx.putImageData(img,0,0);
+    }
+
+    function updatePreview(){
+        document.getElementById('preview-img').src=buildCanvas().toDataURL('image/png');
+        ['r','g','b','a'].forEach(k=>drawChan('ch-'+k,k));
+        const anyLoaded=Object.values(buffers).some(v=>v);
+        const allLoaded=Object.values(buffers).every(v=>v);
+        document.getElementById('preview-status').textContent =
+            allLoaded ? 'STATUS: INTEGRATION_READY' :
+            anyLoaded ? 'STATUS: PARTIAL — USING_DEFAULTS' :
+                        'STATUS: USING_DEFAULTS';
+        // Update export hint
+        const fmt = document.getElementById('fmt-select').value.toUpperCase();
+        document.getElementById('export-hint').textContent =
+            `OUTPUT: T_[NAME]_MaskMap.${fmt.toLowerCase()} · FORMAT: RGBA32 · UNITY_HDRP`;
+    }
+
+    // ═══ TGA ENCODER ════════════════════════════════
+    // Writes uncompressed 32-bit BGRA TGA (type 2), top-left origin
+    function canvasToTGA(canvas) {
+        const ctx = canvas.getContext('2d');
+        const {width: W, height: H} = canvas;
+        const imgData = ctx.getImageData(0, 0, W, H).data;
+        const headerSize = 18;
+        const pixelBytes = W * H * 4;
+        const buf = new Uint8Array(headerSize + pixelBytes);
+        // TGA header
+        buf[0]=0;   // ID length
+        buf[1]=0;   // no color map
+        buf[2]=2;   // uncompressed true-color
+        // color map spec (5 bytes, all 0)
+        buf[3]=buf[4]=buf[5]=buf[6]=buf[7]=0;
+        // image spec
+        buf[8]=buf[9]=0;   // X origin
+        buf[10]=buf[11]=0; // Y origin
+        buf[12]=W&0xFF; buf[13]=(W>>8)&0xFF; // width
+        buf[14]=H&0xFF; buf[15]=(H>>8)&0xFF; // height
+        buf[16]=32;  // 32 bpp
+        buf[17]=0x28; // descriptor: top-left origin (bit5=1), 8 alpha bits
+        // Pixel data: TGA is BGRA
+        for (let i=0; i<W*H; i++) {
+            const s=i*4, d=headerSize+i*4;
+            buf[d+0]=imgData[s+2]; // B
+            buf[d+1]=imgData[s+1]; // G
+            buf[d+2]=imgData[s+0]; // R
+            buf[d+3]=imgData[s+3]; // A
+        }
+        return buf;
+    }
+
+    // ═══ PACK & DOWNLOAD ════════════════════════════
+    document.getElementById('pack-btn').addEventListener('click', ()=>{
+        const pw=document.getElementById('prog-wrap'), pb=document.getElementById('prog-bar');
+        pw.style.display='block'; pb.style.width='0%';
+        let p=0;
+        const tick=setInterval(()=>{
+            p+=10; pb.style.width=p+'%';
+            if(p>=100){
+                clearInterval(tick);
+                const canvas=buildCanvas();
+                const fmt=document.getElementById('fmt-select').value;
+                const base=(filenames.r||filenames.g||filenames.b||filenames.a||'T_Mask')
+                    .replace(/\.(png|tga|jpg|jpeg)$/i,'')
+                    .replace(/_(Metallic|AO|Occlusion|Height|Smoothness)$/i,'');
+                const a=document.createElement('a');
+                if(fmt==='tga'){
+                    const tgaBytes=canvasToTGA(canvas);
+                    const blob=new Blob([tgaBytes],{type:'image/x-tga'});
+                    a.download=`${base}_MaskMap.tga`;
+                    a.href=URL.createObjectURL(blob);
+                } else {
+                    a.download=`${base}_MaskMap.png`;
+                    a.href=canvas.toDataURL('image/png');
+                }
+                a.click();
+                setTimeout(()=>{pw.style.display='none';pb.style.width='0%';},800);
+            }
+        },30);
+    });
+
+    document.getElementById('res-override').addEventListener('change', updatePreview);
+    document.getElementById('fmt-select').addEventListener('change', updatePreview);
+
+    // Run once on load to show defaults immediately
+    updatePreview();
+    </script>
+</body>
+</html>
